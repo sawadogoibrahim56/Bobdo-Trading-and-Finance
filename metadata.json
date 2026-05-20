@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Bobdo Trading and Finance",
+  "description": "Système de trading et de finance autonome, intelligent et sécurisé pour le Burkina Faso et l\u0027Afrique de l\u0027Ouest (zone UEMOA).",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
