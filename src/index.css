@@ -18,10 +18,39 @@
     color: #f8fafc;
     font-family: var(--font-sans);
     overflow-x: hidden;
-    font-size: 14.5px;
-    line-height: 1.65;
+    font-size: 16.5px;
+    line-height: 1.7;
     -webkit-font-smoothing: antialiased;
   }
+}
+
+/* Infinitely rolling marquee at the top of the viewport */
+@keyframes marquee-horizontal {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee-container {
+  display: flex;
+  overflow: hidden;
+  user-select: none;
+  position: relative;
+  width: 100%;
+}
+
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee-horizontal 35s linear infinite;
+  will-change: transform;
+}
+
+.marquee-container:hover .marquee-track {
+  animation-play-state: paused;
 }
 
 /* Custom glowing items and scrollbars */
