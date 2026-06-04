@@ -18,6 +18,13 @@ import {
   SecurityLog,
   SystemState
 } from "./src/types";
+import { 
+  initPostgresPool, 
+  bootstrapSchema, 
+  loadStateFromPostgres, 
+  saveStateToPostgres, 
+  isRemoteDbConnected 
+} from "./server-db";
 
 dotenv.config();
 
@@ -179,6 +186,10 @@ function loadDb(): SystemState {
 function saveDb(state: SystemState) {
   try {
     fs.writeFileSync(DB_PATH, JSON.stringify(state, null, 2));
+    // Asynchronously update remote database
+    saveStateToPostgres(state).catch(err => {
+      console.error("[BTF DATABASE] Background PostgreSQL sync failed:", err);
+    });
   } catch (err) {
     console.error("Failed to save database", err);
   }
@@ -945,6 +956,33 @@ app.post("/api/admin/payments/action", (req, res) => {
 
 // Serve frontend assets
 async function startServer() {
+  // Initialize and connect to PostgreSQL database (Supabase/Render) if DATABASE_URL is set
+  const pool = initPostgresPool();
+  if (pool) {
+    console.log("[BTF DATABASE] Remote DATABASE_URL provided. Initiating cloud sync...");
+    const bootstrapped = await bootstrapSchema();
+    if (bootstrapped) {
+      const pgState = await loadStateFromPostgres();
+      if (pgState) {
+        db = pgState;
+        console.log("[BTF DATABASE] Successfully loaded and synchronized state from cloud database.");
+      } else {
+        console.log("[BTF DATABASE] Cold boot detected. Database tables initialized but empty. Seeding with local template JSON data...");
+        // Seed remote database with current state
+        const seeded = await saveStateToPostgres(db);
+        if (seeded) {
+          console.log("[BTF DATABASE] Successfully seeded PostgreSQL with core templates and active user.");
+        } else {
+          console.error("[BTF DATABASE] Seeding process returned errors. Check postgres pool schema constraints.");
+        }
+      }
+    } else {
+      console.error("[BTF DATABASE] Table bootstrap failed. Running on local fallbacks. Check credentials.");
+    }
+  } else {
+    console.log("[BTF DATABASE] Running on high-security localized storage. To transition to a persistent database (e.g. Supabase or Render), define DATABASE_URL.");
+  }
+
   if (process.env.NODE_ENV !== "production") {
     // Integrate Vite development server middleware
     const vite = await createViteServer({
@@ -964,6 +1002,11 @@ async function startServer() {
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`[BTF SYSTEM] Bobdo Trading & Finance server started on http://0.0.0.0:${PORT}`);
     console.log(`[BTF SYSTEM] Synchronized in UTC with NTP Time servers. Active Area: Zone UEMOA Sub-Saharan`);
+    if (isRemoteDbConnected) {
+      console.log("[BTF DATABASE] 🟢 remote persistence layer synced and active!");
+    } else {
+      console.log("[BTF DATABASE] 🟡 local offline-first security sandboxed database active.");
+    }
   });
 }
 
