@@ -237,7 +237,10 @@ export default function TradeRoom({
     try {
       const resp = await fetch("/api/trades/run-arbitrage-cycle", {
         method: "POST",
-        headers: { "Content-Type": "application/json" }
+        headers: { 
+          "Content-Type": "application/json",
+          "x-user-email": session?.email || ""
+        }
       });
       const data = await resp.json();
       if (resp.ok && data.success) {

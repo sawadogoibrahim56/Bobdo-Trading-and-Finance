@@ -100,8 +100,14 @@ export async function bootstrapSchema() {
         take_profit NUMERIC,
         timestamp TEXT NOT NULL,
         is_autonomous BOOLEAN NOT NULL DEFAULT FALSE,
-        risk_percent NUMERIC NOT NULL DEFAULT 0
+        risk_percent NUMERIC NOT NULL DEFAULT 0,
+        user_email VARCHAR(255) DEFAULT 'ibsawadogo54@gmail.com'
       );
+    `);
+
+    // Ensure table has the column if already created
+    await client.query(`
+      ALTER TABLE btf_orders ADD COLUMN IF NOT EXISTS user_email VARCHAR(255) DEFAULT 'ibsawadogo54@gmail.com';
     `);
 
     // 4. Scanned reports
@@ -238,7 +244,8 @@ export async function loadStateFromPostgres(): Promise<SystemState | null> {
         takeProfit: parseFloat(row.take_profit || "0"),
         timestamp: row.timestamp,
         isAutonomous: row.is_autonomous,
-        riskPercent: parseFloat(row.risk_percent || "0")
+        riskPercent: parseFloat(row.risk_percent || "0"),
+        userEmail: row.user_email || "ibsawadogo54@gmail.com"
       }));
 
       const reports: PhysicalMarketReport[] = reportsRes.rows.map(row => ({
@@ -388,12 +395,12 @@ export async function saveStateToPostgres(state: SystemState): Promise<boolean> 
         await client.query(`
           INSERT INTO btf_orders (
             id, symbol, type, price, amount, total_fcfa, mode, status,
-            stop_loss, take_profit, timestamp, is_autonomous, risk_percent
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            stop_loss, take_profit, timestamp, is_autonomous, risk_percent, user_email
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
           ON CONFLICT (id) DO NOTHING
         `, [
           o.id, o.symbol, o.type, o.price, o.amount, o.totalFCFA?.toString(), o.mode, o.status,
-          o.stopLoss, o.takeProfit, o.timestamp, o.isAutonomous, o.riskPercent
+          o.stopLoss, o.takeProfit, o.timestamp, o.isAutonomous, o.riskPercent, o.userEmail || "ibsawadogo54@gmail.com"
         ]);
       }
 

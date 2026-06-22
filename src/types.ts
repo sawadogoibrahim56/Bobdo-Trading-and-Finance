@@ -39,6 +39,7 @@ export interface TradeOrder {
   timestamp: string;
   isAutonomous: boolean;
   riskPercent: number;
+  userEmail?: string;
 }
 
 export interface PhysicalMarketReport {

@@ -12,9 +12,13 @@ import PhysicalMarket from "./components/PhysicalMarket";
 import AISentiment from "./components/AISentiment";
 import Billing from "./components/Billing";
 import AdminPanel from "./components/AdminPanel";
+import AuthOnboarding from "./components/AuthOnboarding";
 import { UserSession, TradeOrder, PhysicalMarketReport, SentimentAnalysis, PaymentRequest, SecurityLog } from "./types";
 
 export default function App() {
+  const [userEmail, setUserEmail] = useState<string | null>(() => {
+    return localStorage.getItem("btf_user_email");
+  });
   const [activeTab, setActiveTab] = useState<string>("trade");
   const [session, setSession] = useState<UserSession | null>(null);
   const [isTrialExpired, setIsTrialExpired] = useState(false);
@@ -55,11 +59,17 @@ export default function App() {
 
   // Fetch initial and updated states from port 3000 Node server APIs
   useEffect(() => {
+    if (!userEmail) return;
     const fetchStates = async () => {
       setIsStateLoading(true);
       try {
+        const clientHeaders = {
+          "Content-Type": "application/json",
+          "x-user-email": userEmail
+        };
+
         // 1. User session
-        const sessRes = await fetch("/api/user/session");
+        const sessRes = await fetch("/api/user/session", { headers: clientHeaders });
         if (sessRes.ok) {
           const sessData = await sessRes.json();
           setSession(sessData.session);
@@ -69,7 +79,7 @@ export default function App() {
         }
 
         // 2. Trades and Veto rules
-        const tradeRes = await fetch("/api/trades");
+        const tradeRes = await fetch("/api/trades", { headers: clientHeaders });
         if (tradeRes.ok) {
           const tradeData = await tradeRes.json();
           setOrders(tradeData.orders);
@@ -79,14 +89,14 @@ export default function App() {
         }
 
         // 3. Physical Market
-        const physRes = await fetch("/api/physical-market");
+        const physRes = await fetch("/api/physical-market", { headers: clientHeaders });
         if (physRes.ok) {
           const physData = await physRes.json();
           setPhysicalReports(physData.reports || []);
         }
 
         // 4. Admin telemetry (will populate list if authorized, or remain silent otherwise)
-        const adminRes = await fetch("/api/admin/dashboard");
+        const adminRes = await fetch("/api/admin/dashboard", { headers: clientHeaders });
         if (adminRes.ok) {
           const adminData = await adminRes.json();
           setPaymentsHistory(adminData.payments || []);
@@ -104,14 +114,17 @@ export default function App() {
     };
 
     fetchStates();
-  }, [actionTrigger]);
+  }, [actionTrigger, userEmail]);
 
   // Execute a trade through backend
   const handlePlaceOrder = async (orderPayload: any) => {
     try {
       const resp = await fetch("/api/trades/place", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-user-email": userEmail || ""
+        },
         body: JSON.stringify(orderPayload)
       });
       const data = await resp.json();
@@ -133,7 +146,10 @@ export default function App() {
     try {
       const resp = await fetch("/api/admin/veto/order", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-user-email": userEmail || ""
+        },
         body: JSON.stringify({ orderId })
       });
       if (resp.ok) {
@@ -149,7 +165,10 @@ export default function App() {
     try {
       const resp = await fetch("/api/payments/submit", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-user-email": userEmail || ""
+        },
         body: JSON.stringify(paymentPayload)
       });
       return resp.ok;
@@ -163,7 +182,10 @@ export default function App() {
     try {
       const resp = await fetch("/api/physical-market/report", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-user-email": userEmail || ""
+        },
         body: JSON.stringify(reportPayload)
       });
       return resp.ok;
@@ -177,7 +199,10 @@ export default function App() {
     try {
       const resp = await fetch("/api/gemini/news-analyzer", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-user-email": userEmail || ""
+        },
         body: JSON.stringify({ targetAsset })
       });
       if (resp.ok) {
@@ -196,7 +221,10 @@ export default function App() {
   // Toggle absolute veto master switch on server
   const handleToggleVeto = async () => {
     try {
-      const resp = await fetch("/api/admin/veto/toggle", { method: "POST" });
+      const resp = await fetch("/api/admin/veto/toggle", { 
+        method: "POST",
+        headers: { "x-user-email": userEmail || "" }
+      });
       if (resp.ok) {
         triggerRefresh();
         return true;
@@ -210,7 +238,10 @@ export default function App() {
   // Toggle Drawdown limit reached manually check
   const handleToggleDrawdown = async () => {
     try {
-      const resp = await fetch("/api/admin/drawdown/toggle", { method: "POST" });
+      const resp = await fetch("/api/admin/drawdown/toggle", { 
+        method: "POST",
+        headers: { "x-user-email": userEmail || "" }
+      });
       if (resp.ok) {
         triggerRefresh();
         return true;
@@ -226,7 +257,10 @@ export default function App() {
     try {
       const resp = await fetch("/api/admin/payments/action", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-user-email": userEmail || ""
+        },
         body: JSON.stringify({ paymentId, action: action === "APPROVE" ? "APPROVE" : "REJECT" })
       });
       if (resp.ok) {
@@ -244,7 +278,10 @@ export default function App() {
     try {
       const resp = await fetch("/api/user/keys", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-user-email": userEmail || ""
+        },
         body: JSON.stringify(keysData)
       });
       if (resp.ok) {
@@ -260,7 +297,10 @@ export default function App() {
   // Reset demo accounts money
   const handleResetSimulatedCapital = async () => {
     try {
-      const resp = await fetch("/api/user/reset", { method: "POST" });
+      const resp = await fetch("/api/user/reset", { 
+        method: "POST",
+        headers: { "x-user-email": userEmail || "" }
+      });
       if (resp.ok) {
         triggerRefresh();
         showNotification("Capital simulé réinitialisé à 1 500 000 F CFA et 2 500 USDT !", "success");
@@ -272,6 +312,17 @@ export default function App() {
       showNotification("Erreur de connexion lors de la réinitialisation du capital.", "error");
     }
   };
+
+  if (!userEmail) {
+    return (
+      <AuthOnboarding 
+        onLogin={(email) => {
+          localStorage.setItem("btf_user_email", email);
+          setUserEmail(email);
+        }} 
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-emerald-500 selection:text-slate-950 font-sans text-sm md:text-base">

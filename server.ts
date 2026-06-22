@@ -231,69 +231,102 @@ function addSecurityLog(action: string, ip: string, details: string, severity: '
   saveDb(db);
 }
 
+// Dynamically retrieve user from request context (HTTP Header x-user-email or fallbacks)
+function getCurrentUser(req: express.Request): any {
+  const emailHeader = req.headers["x-user-email"];
+  const email = emailHeader ? String(emailHeader).trim().toLowerCase() : "ibsawadogo54@gmail.com";
+  
+  // Find or create user
+  let user = db.users.find(u => u.email.toLowerCase() === email);
+  if (!user && email && email.includes("@")) {
+    user = {
+      email: email,
+      trialStartDate: new Date().toISOString(),
+      isSubscribed: false,
+      subscriptionType: "PAID",
+      balanceFCFA: 1500000, // 1.5M FCFA startup demo money
+      balanceUSDT: 2500,
+      referralCode: "SESS" + Math.random().toString(36).substring(2, 7).toUpperCase(),
+      referredBy: "BTF_SYSTEM",
+      referralEarningsFCFA: 0,
+      referralCount: 0,
+      accumulatedFreeCommissionFCFA: 0,
+      apiKeys: {}
+    };
+    db.users.push(user);
+    saveDb(db);
+    console.log(`[BTF REGISTRY] Persistent account configured and initialized for email: ${email}`);
+  } else if (!user) {
+    return db.users[0];
+  }
+  return user;
+}
+
 // SIMULATOR TRADE ROTATION (Adds dynamic movements for visual trading)
 setInterval(() => {
-  // Try to generate automated simulated transactions for user if autonomous mode is on
-  const user = db.users[0];
-  if (user && !db.isVetoActive && !db.dailyDrawdownLimitReached) {
-    // Random occurrence of automatic trade execution
-    if (Math.random() > 0.85) {
-      const symbols = ["SONATEL", "CORIS BANK", "ORANGE CI", "BTC/USDT", "ETH/USDT"];
-      const selectedSymbol = symbols[Math.floor(Math.random() * symbols.length)];
-      const isCrypto = selectedSymbol.includes("/");
-      const price = isCrypto ? (selectedSymbol.startsWith("BTC") ? 64000 + (Math.random() - 0.5) * 500 : 3400 + (Math.random() - 0.5) * 50) : (selectedSymbol === "SONATEL" ? 18400 + Math.floor(Math.random() * 200 - 100) : 9500 + Math.floor(Math.random() * 100 - 50));
-      
-      const type = Math.random() > 0.4 ? "BUY" : "SELL";
-      const userBalance = isCrypto ? user.balanceUSDT : user.balanceFCFA;
-      
-      // Strict Risk Check: Maximum 1% of equity per trade
-      const maxRiskCapital = userBalance * 0.01;
-      const orderAmount = isCrypto ? (maxRiskCapital / price) : Math.max(1, Math.floor(maxRiskCapital / price));
-      const totalFCFA = isCrypto ? (orderAmount * price * 600) : (orderAmount * price);
-
-      if (userBalance > (isCrypto ? (orderAmount * price) : totalFCFA)) {
-        // Enforce forced Stop Loss & Take Profit
-        const stopLoss = type === "BUY" ? price * 0.98 : price * 1.02;
-        const takeProfit = type === "BUY" ? price * 1.05 : price * 0.95;
-
-        const newOrder: TradeOrder = {
-          id: `order-${Date.now()}`,
-          symbol: selectedSymbol,
-          type,
-          price,
-          amount: parseFloat(orderAmount.toFixed(4)),
-          totalFCFA: Math.floor(totalFCFA),
-          mode: (user.apiKeys.binanceKey || user.apiKeys.okxKey || user.apiKeys.bybitKey || user.apiKeys.brvmId) ? "REAL" : "DEMO",
-          status: "COMPLETED",
-          stopLoss: parseFloat(stopLoss.toFixed(2)),
-          takeProfit: parseFloat(takeProfit.toFixed(2)),
-          timestamp: new Date().toISOString(),
-          isAutonomous: true,
-          riskPercent: 1.0
-        };
-
-        // Adjust balance
-        if (type === "BUY") {
-          if (isCrypto) {
-            user.balanceUSDT -= orderAmount * price;
-          } else {
-            user.balanceFCFA -= totalFCFA;
-          }
-        } else {
-          if (isCrypto) {
-            user.balanceUSDT += orderAmount * price;
-          } else {
-            user.balanceFCFA += totalFCFA;
-          }
-        }
-
-        db.orders.unshift(newOrder);
-        db.totalVolumeTradedFCFA += totalFCFA;
-        saveDb(db);
+  // Try to generate automated simulated transactions for each registered user
+  if (!db.isVetoActive && !db.dailyDrawdownLimitReached) {
+    db.users.forEach((user) => {
+      // Random occurrence of automatic trade execution for each active user
+      if (Math.random() > 0.85) {
+        const symbols = ["SONATEL", "CORIS BANK", "ORANGE CI", "BTC/USDT", "ETH/USDT"];
+        const selectedSymbol = symbols[Math.floor(Math.random() * symbols.length)];
+        const isCrypto = selectedSymbol.includes("/");
+        const price = isCrypto ? (selectedSymbol.startsWith("BTC") ? 64000 + (Math.random() - 0.5) * 500 : 3400 + (Math.random() - 0.5) * 50) : (selectedSymbol === "SONATEL" ? 18400 + Math.floor(Math.random() * 200 - 100) : 9500 + Math.floor(Math.random() * 100 - 50));
         
-        console.log(`[AUTONOMOUS TRADER] Successfully executed ${type} automated order for ${selectedSymbol}`);
+        const type = Math.random() > 0.4 ? "BUY" : "SELL";
+        const userBalance = isCrypto ? user.balanceUSDT : user.balanceFCFA;
+        
+        // Strict Risk Check: Maximum 1% of equity per trade
+        const maxRiskCapital = userBalance * 0.01;
+        const orderAmount = isCrypto ? (maxRiskCapital / price) : Math.max(1, Math.floor(maxRiskCapital / price));
+        const totalFCFA = isCrypto ? (orderAmount * price * 600) : (orderAmount * price);
+
+        if (userBalance > (isCrypto ? (orderAmount * price) : totalFCFA)) {
+          // Enforce forced Stop Loss & Take Profit
+          const stopLoss = type === "BUY" ? price * 0.98 : price * 1.02;
+          const takeProfit = type === "BUY" ? price * 1.05 : price * 0.95;
+
+          const newOrder: TradeOrder = {
+            id: `order-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            symbol: selectedSymbol,
+            type,
+            price,
+            amount: parseFloat(orderAmount.toFixed(4)),
+            totalFCFA: Math.floor(totalFCFA),
+            mode: (user.apiKeys?.binanceKey || user.apiKeys?.okxKey || user.apiKeys?.bybitKey || user.apiKeys?.brvmId) ? "REAL" : "DEMO",
+            status: "COMPLETED",
+            stopLoss: parseFloat(stopLoss.toFixed(2)),
+            takeProfit: parseFloat(takeProfit.toFixed(2)),
+            timestamp: new Date().toISOString(),
+            isAutonomous: true,
+            riskPercent: 1.0,
+            userEmail: user.email
+          };
+
+          // Adjust balance
+          if (type === "BUY") {
+            if (isCrypto) {
+              user.balanceUSDT -= orderAmount * price;
+            } else {
+              user.balanceFCFA -= totalFCFA;
+            }
+          } else {
+            if (isCrypto) {
+              user.balanceUSDT += orderAmount * price;
+            } else {
+              user.balanceFCFA += totalFCFA;
+            }
+          }
+
+          db.orders.unshift(newOrder);
+          db.totalVolumeTradedFCFA += totalFCFA;
+          saveDb(db);
+          
+          console.log(`[AUTONOMOUS TRADER] Successfully executed ${type} automated order of ${selectedSymbol} for user ${user.email}`);
+        }
       }
-    }
+    });
   }
 }, 30000); // Check automated trades every 30 seconds
 
@@ -306,7 +339,7 @@ app.get("/api/health", (req, res) => {
 
 // Get Current User / Subscription Session
 app.get("/api/user/session", (req, res) => {
-  const user = db.users[0];
+  const user = getCurrentUser(req);
   if (!user) {
     return res.status(404).json({ error: "User session not found" });
   }
@@ -352,7 +385,7 @@ app.get("/api/user/session", (req, res) => {
 
 // Update User API Connectors
 app.post("/api/user/keys", (req, res) => {
-  const user = db.users[0];
+  const user = getCurrentUser(req);
   const { binanceKey, binanceSecret, okxKey, bybitKey, brvmId } = req.body;
   
   if (!user) {
@@ -375,7 +408,7 @@ app.post("/api/user/keys", (req, res) => {
 
 // Reset Account simulated assets
 app.post("/api/user/reset", (req, res) => {
-  const user = db.users[0];
+  const user = getCurrentUser(req);
   if (user) {
     user.balanceFCFA = 1500000;
     user.balanceUSDT = 2500;
@@ -391,7 +424,7 @@ app.post("/api/user/reset", (req, res) => {
 
 // Activate Free/Commission-Based Subscription Plan
 app.post("/api/user/subscribe-free", (req, res) => {
-  const user = db.users[0];
+  const user = getCurrentUser(req);
   if (!user) {
     return res.status(404).json({ error: "Session utilisateur inactive." });
   }
@@ -464,7 +497,7 @@ app.post("/api/admin/config/withdraw", (req, res) => {
 
 // High-Frequency Arbitrage Bot Execution Loop Simulator
 app.post("/api/trades/run-arbitrage-cycle", (req, res) => {
-  const user = db.users[0];
+  const user = getCurrentUser(req);
   if (!user) {
     return res.status(404).json({ error: "Session inactive." });
   }
@@ -552,6 +585,7 @@ app.post("/api/trades/run-arbitrage-cycle", (req, res) => {
 // Submit Support Orange / Moov / Wave Money Payment Proof (SaaS Subscription)
 app.post("/api/payments/submit", (req, res) => {
   const { operator, transactionId, amount, phoneSender, proofDetails } = req.body;
+  const user = getCurrentUser(req);
   
   if (!operator || !transactionId || !amount || !phoneSender) {
     return res.status(400).json({ error: "Veuillez remplir tous les champs obligatoires du transfert." });
@@ -559,7 +593,7 @@ app.post("/api/payments/submit", (req, res) => {
 
   const newPayment: PaymentRequest = {
     id: `pay-${Date.now()}`,
-    email: db.users[0]?.email || "anonymous@uemoa.com",
+    email: user?.email || "anonymous@uemoa.com",
     operator,
     transactionId,
     amount: parseFloat(amount),
@@ -583,8 +617,10 @@ app.post("/api/payments/submit", (req, res) => {
 
 // Get Active Trades/Orders
 app.get("/api/trades", (req, res) => {
+  const user = getCurrentUser(req);
+  const userOrders = db.orders.filter(o => !o.userEmail || o.userEmail === user.email);
   res.json({
-    orders: db.orders,
+    orders: userOrders,
     isVetoActive: db.isVetoActive,
     dailyDrawdownLimitReached: db.dailyDrawdownLimitReached,
     totalVolumeTradedFCFA: db.totalVolumeTradedFCFA
@@ -593,7 +629,7 @@ app.get("/api/trades", (req, res) => {
 
 // Post a Trade manually (Mode DEMO / simulated REAL)
 app.post("/api/trades/place", (req, res) => {
-  const user = db.users[0];
+  const user = getCurrentUser(req);
   const { symbol, type, price, amount, stopLoss, takeProfit, isAutonomous } = req.body;
 
   if (db.isVetoActive) {
@@ -654,7 +690,8 @@ app.post("/api/trades/place", (req, res) => {
     takeProfit: takeProfit ? parseFloat(takeProfit) : (type === "BUY" ? calculatedPrice * 1.05 : calculatedPrice * 0.95),
     timestamp: new Date().toISOString(),
     isAutonomous: !!isAutonomous,
-    riskPercent: parseFloat(riskPercent.toFixed(2))
+    riskPercent: parseFloat(riskPercent.toFixed(2)),
+    userEmail: user.email
   };
 
   // Debit balance
@@ -916,7 +953,7 @@ app.post("/api/admin/payments/action", (req, res) => {
   if (action === "APPROVE") {
     payment.status = "APPROVED";
     // Grant SaaS status to user
-    const user = db.users[0];
+    const user = db.users.find(u => u.email.toLowerCase() === payment.email.toLowerCase());
     if (user) {
       user.isSubscribed = true;
       user.subscriptionType = "PAID";

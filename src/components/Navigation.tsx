@@ -260,21 +260,43 @@ export default function Navigation({
 
           {/* Account balance quick state */}
           {session && (
-            <div className={`flex items-center gap-3.5 bg-emerald-500/5 rounded-lg border border-emerald-500/10 shrink-0 ${
-              isHeaderCollapsed ? "px-3.5 py-1.5" : "px-4.5 py-2.5"
-            }`}>
-              <div className="text-right">
-                <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Compte</div>
-                <div className="font-mono text-sm sm:text-base font-black text-emerald-400">
-                  {session.balanceFCFA.toLocaleString()} F
+            <div className="flex items-center gap-3">
+              <div className={`flex items-center gap-3.5 bg-emerald-500/5 rounded-lg border border-emerald-500/10 shrink-0 ${
+                isHeaderCollapsed ? "px-3.5 py-1.5" : "px-4.5 py-2.5"
+              }`}>
+                <div className="text-right">
+                  <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Compte</div>
+                  <div className="font-mono text-sm sm:text-base font-black text-emerald-400">
+                    {session.balanceFCFA.toLocaleString()} F
+                  </div>
+                </div>
+                <div className="h-5 w-[1px] bg-slate-800" />
+                <div className="text-right">
+                  <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">USDT</div>
+                  <div className="font-mono text-sm sm:text-base font-black text-slate-200">
+                    {session.balanceUSDT.toLocaleString()}
+                  </div>
                 </div>
               </div>
-              <div className="h-5 w-[1px] bg-slate-800" />
-              <div className="text-right">
-                <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">USDT</div>
-                <div className="font-mono text-sm sm:text-base font-black text-slate-200">
-                  {session.balanceUSDT.toLocaleString()}
+
+              {/* Profile card and logout switch */}
+              <div className="flex flex-col items-end shrink-0 pl-1.5 border-l border-slate-900">
+                <div className="flex items-center gap-1.5 text-xs text-slate-350">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span className="font-mono truncate max-w-[110px] font-bold" title={session.email}>
+                    {session.email}
+                  </span>
                 </div>
+                <button
+                  id="btn-nav-logout"
+                  onClick={() => {
+                    localStorage.removeItem("btf_user_email");
+                    window.location.reload();
+                  }}
+                  className="text-[10px] text-red-400 hover:text-red-300 underline cursor-pointer font-bold leading-none mt-1"
+                >
+                  Se déconnecter
+                </button>
               </div>
             </div>
           )}
